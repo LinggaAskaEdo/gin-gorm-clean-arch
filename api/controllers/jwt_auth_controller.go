@@ -29,12 +29,10 @@ func NewJWTAuthController(logger lib.Logger, service services.JWTAuthService, us
 	}
 }
 
-// SignIn signs in user
+// Login signs in user
 func (jwt JWTAuthController) Login(c *gin.Context) {
 	jwt.logger.Info("Login route called")
 
-	// Currently not checking for username and password
-	// Can add the logic later if necessary.
 	var req dto.Request
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -89,10 +87,10 @@ func (jwt JWTAuthController) Login(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"status":        http.StatusOK,
-		"message":       constants.RequestSuccess,
-		"access_token":  token.AccessToken,
-		"refresh_token": token.RefreshToken,
+		"status":       http.StatusOK,
+		"message":      constants.RequestSuccess,
+		"accessToken":  token.AccessToken,
+		"refreshToken": token.RefreshToken,
 	})
 }
 
@@ -124,8 +122,8 @@ func (jwt JWTAuthController) Register(c *gin.Context) {
 	if err != nil {
 		jwt.logger.Error(err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status":  http.StatusBadRequest,
-			"message": err.Error()})
+			"status": http.StatusBadRequest,
+			"error":  err.Error()})
 		return
 	}
 

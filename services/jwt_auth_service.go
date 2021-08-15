@@ -3,13 +3,15 @@ package services
 import (
 	"errors"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/LinggaAskaEdo/gin-gorm-clean-arch/lib"
 	dto "github.com/LinggaAskaEdo/gin-gorm-clean-arch/models/dto"
 	entity "github.com/LinggaAskaEdo/gin-gorm-clean-arch/models/entity"
 	"github.com/LinggaAskaEdo/gin-gorm-clean-arch/repository"
-	"github.com/dgrijalva/jwt-go"
+
+	"github.com/golang-jwt/jwt"
 	"github.com/twinj/uuid"
 )
 
@@ -29,14 +31,50 @@ func NewJWTAuthService(env lib.Env, logger lib.Logger, repository repository.Red
 	}
 }
 
-// Authorize authorizes the generated token
-func (s JWTAuthService) Authorize(tokenString string) (bool, error) {
+// SplitToken
+func (s JWTAuthService) ExtractToken(authHeader string) (string, error) {
+	s.logger.Debug("ExtractToken")
+	t := strings.Split(authHeader, " ")
+
+	if len(t) == 2 {
+		return t[1], nil
+	}
+
+	return "", errors.New("token malformed")
+}
+
+// ExtractToken
+func (s JWTAuthService) VerifyToken(tokenString string) (*jwt.Token, error) {
+	s.logger.Debug("VerifyToken")
+
 	token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
+		//Make sure that the token method conform to "SigningMethodHMAC"
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
+		}
+
 		return []byte(s.env.AccessSecret), nil
 	})
+	if err != nil {
+		return nil, errors.New("token parse error")
+	}
+
+	return token, nil
+}
+
+// Authorize authorizes the generated token
+func (s JWTAuthService) AuthorizeToken(tokenString string) (bool, error) {
+	s.logger.Debug("AuthorizeToken")
+
+	token, err := s.VerifyToken(tokenString)
+	if err != nil {
+		return false, errors.New("token malformed")
+	}
+
 	if token.Valid {
 		return true, nil
 	} else if ve, ok := err.(*jwt.ValidationError); ok {
+
 		if ve.Errors&jwt.ValidationErrorMalformed != 0 {
 			return false, errors.New("token malformed")
 		}
@@ -44,14 +82,15 @@ func (s JWTAuthService) Authorize(tokenString string) (bool, error) {
 			return false, errors.New("token expired")
 		}
 	}
+
 	return false, errors.New("couldn't handle token")
 }
 
 // CreateToken creates jwt auth token
 func (s JWTAuthService) CreateToken(user entity.User) (*dto.TokenDetails, error) {
 	tokenDetails := &dto.TokenDetails{}
-	tokenDetails.AtExpires = time.Now().Add(time.Minute * 15).Unix()
-	tokenDetails.RtExpires = time.Now().Add(time.Hour * 24 * 7).Unix()
+	tokenDetails.AtExpires = time.Now().Add(time.Minute * 3).Unix()
+	tokenDetails.RtExpires = time.Now().Add(time.Minute * 15).Unix()
 	tokenDetails.AccessUUID = uuid.NewV4().String()
 	tokenDetails.RefreshUUID = uuid.NewV4().String()
 
@@ -103,7 +142,6 @@ func (s JWTAuthService) StoreToken(user entity.User, token dto.TokenDetails) err
 	}
 
 	errRefresh := s.repository.Set(token.RefreshUUID, strconv.Itoa(int(user.ID)), rt.Sub(now)).Err()
-
 	if errRefresh != nil {
 		return errRefresh
 	}
