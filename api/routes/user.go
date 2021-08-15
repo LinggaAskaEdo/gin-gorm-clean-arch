@@ -19,6 +19,7 @@ func (s UserRoutes) Setup() {
 	s.logger.Info("Setting up routes")
 	api := s.handler.Gin.Group("/api").Use(s.authMiddleware.Handler())
 	{
+		api.POST("/logout", s.userController.Logout)
 		api.GET("/user/:id", s.userController.GetOneUser)
 		api.GET("/user", s.userController.GetUser)
 		api.POST("/user", s.userController.SaveUser)

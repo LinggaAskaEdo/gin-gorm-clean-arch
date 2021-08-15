@@ -15,20 +15,47 @@ import (
 
 // UserController data type
 type UserController struct {
-	service services.UserService
-	logger  lib.Logger
+	authService services.JWTAuthService
+	service     services.UserService
+	logger      lib.Logger
 }
 
 // NewUserController creates new user controller
-func NewUserController(userService services.UserService, logger lib.Logger) UserController {
+func NewUserController(authService services.JWTAuthService, userService services.UserService, logger lib.Logger) UserController {
 	return UserController{
-		service: userService,
-		logger:  logger,
+		authService: authService,
+		service:     userService,
+		logger:      logger,
 	}
+}
+
+// Logout user
+func (u UserController) Logout(c *gin.Context) {
+	u.logger.Info("Logout route called")
+
+	//TODO: get uuid from token then delete it from redis
+	// token, err := u.authService.ExtractToken()
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// authHeader := c.Request.Header.Get("Authorization")
+	// t := strings.Split(authHeader, " ")
+	// authToken := t[1]
+
+	// claims, ok := authToken.Claims.(jwt.MapClaims)
+	// if ok && token.Valid {
+	// 	accessUUID, ok := claims["access_uuid"].(string)
+	// 	if !ok {
+	// 		return nil, err
+	// 	}
+	// }
 }
 
 // GetOneUser gets one user
 func (u UserController) GetOneUser(c *gin.Context) {
+	u.logger.Info("GetOneUser route called")
+
 	paramID := c.Param("id")
 
 	id, err := strconv.Atoi(paramID)
@@ -56,6 +83,8 @@ func (u UserController) GetOneUser(c *gin.Context) {
 
 // GetUser gets the user
 func (u UserController) GetUser(c *gin.Context) {
+	u.logger.Info("GetUser route called")
+
 	users, err := u.service.GetAllUser()
 	if err != nil {
 		u.logger.Error(err)
@@ -66,6 +95,8 @@ func (u UserController) GetUser(c *gin.Context) {
 
 // SaveUser saves the user
 func (u UserController) SaveUser(c *gin.Context) {
+	u.logger.Info("SaveUser route called")
+
 	request := dto.Request{}
 	trxHandle := c.MustGet(constants.DBTransaction).(*gorm.DB)
 
