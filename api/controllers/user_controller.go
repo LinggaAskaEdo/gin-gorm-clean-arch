@@ -33,23 +33,27 @@ func NewUserController(authService services.JWTAuthService, userService services
 func (u UserController) Logout(c *gin.Context) {
 	u.logger.Info("Logout route called")
 
-	//TODO: get uuid from token then delete it from redis
-	// token, err := u.authService.ExtractToken()
-	// if err != nil {
-	// 	return nil, err
-	// }
+	authToken, _ := u.authService.ExtractToken(c.Request.Header.Get("Authorization"))
 
-	// authHeader := c.Request.Header.Get("Authorization")
-	// t := strings.Split(authHeader, " ")
-	// authToken := t[1]
+	au, err := u.authService.ExtractTokenMetadata(authToken)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status": http.StatusUnauthorized,
+			"error":  err.Error()})
+		return
+	}
 
-	// claims, ok := authToken.Claims.(jwt.MapClaims)
-	// if ok && token.Valid {
-	// 	accessUUID, ok := claims["access_uuid"].(string)
-	// 	if !ok {
-	// 		return nil, err
-	// 	}
-	// }
+	deleted, delErr := u.service.DeleteToken(au.AccessUUID, au.RefreshUUID)
+	if delErr != nil || deleted == 0 { //if any goes wrong
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"status": http.StatusUnauthorized,
+			"error":  err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  http.StatusOK,
+		"message": "Successfully logged out"})
 }
 
 // GetOneUser gets one user

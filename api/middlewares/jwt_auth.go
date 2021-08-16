@@ -4,21 +4,24 @@ import (
 	"net/http"
 
 	"github.com/LinggaAskaEdo/gin-gorm-clean-arch/lib"
+	"github.com/LinggaAskaEdo/gin-gorm-clean-arch/repository"
 	"github.com/LinggaAskaEdo/gin-gorm-clean-arch/services"
 	"github.com/gin-gonic/gin"
 )
 
 // JWTAuthMiddleware middleware for jwt authentication
 type JWTAuthMiddleware struct {
-	service services.JWTAuthService
-	logger  lib.Logger
+	logger     lib.Logger
+	service    services.JWTAuthService
+	repository repository.RedisRepository
 }
 
 // NewJWTAuthMiddleware creates new jwt auth middleware
-func NewJWTAuthMiddleware(logger lib.Logger, service services.JWTAuthService) JWTAuthMiddleware {
+func NewJWTAuthMiddleware(logger lib.Logger, service services.JWTAuthService, repository repository.RedisRepository) JWTAuthMiddleware {
 	return JWTAuthMiddleware{
-		service: service,
-		logger:  logger,
+		logger:     logger,
+		service:    service,
+		repository: repository,
 	}
 }
 
@@ -40,7 +43,6 @@ func (m JWTAuthMiddleware) Handler() gin.HandlerFunc {
 
 		authorized, err := m.service.AuthorizeToken(authToken)
 		if authorized {
-			// TODO: add logic check uuid is exist in redis, if exist next, if not exist abort
 			c.Next()
 			return
 		}

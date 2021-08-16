@@ -9,15 +9,17 @@ import (
 
 // UserService service layer
 type UserService struct {
-	logger     lib.Logger
-	repository repository.UserRepository
+	logger          lib.Logger
+	repository      repository.UserRepository
+	redisRepository repository.RedisRepository
 }
 
 // NewUserService creates a new userservice
-func NewUserService(logger lib.Logger, repository repository.UserRepository) UserService {
+func NewUserService(logger lib.Logger, repository repository.UserRepository, redisRepository repository.RedisRepository) UserService {
 	return UserService{
-		logger:     logger,
-		repository: repository,
+		logger:          logger,
+		repository:      repository,
+		redisRepository: redisRepository,
 	}
 }
 
@@ -44,4 +46,14 @@ func (s UserService) GetAllUser() (users []entity.User, err error) {
 // CreateUser call to create the user
 func (s UserService) CreateUser(user entity.User) (result entity.User, err error) {
 	return result, s.repository.Create(&user).Error
+}
+
+// DeleteToken
+func (s UserService) DeleteToken(accessuuid string, refreshuuid string) (int64, error) {
+	deleted, err := s.redisRepository.Del(accessuuid, refreshuuid).Result()
+	if err != nil {
+		return 0, err
+	}
+
+	return deleted, nil
 }

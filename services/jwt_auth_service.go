@@ -43,7 +43,7 @@ func (s JWTAuthService) ExtractToken(authHeader string) (string, error) {
 	return "", errors.New("token malformed")
 }
 
-// ExtractToken
+// VerifyToken
 func (s JWTAuthService) VerifyToken(tokenString string) (*jwt.Token, error) {
 	s.logger.Debug("VerifyToken")
 
@@ -72,7 +72,20 @@ func (s JWTAuthService) AuthorizeToken(tokenString string) (bool, error) {
 	}
 
 	if token.Valid {
-		return true, nil
+		// TODO: add logic check uuid is exist in redis, if exist next, if not exist abort
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if ok && token.Valid {
+			accessUUID, ok := claims["access_uuid"].(string)
+			if !ok {
+				return false, errors.New("token malformed")
+			}
+
+			if s.FetchToken(accessUUID) {
+				return true, nil
+			}
+		}
+
+		return false, errors.New("token deleted")
 	} else if ve, ok := err.(*jwt.ValidationError); ok {
 
 		if ve.Errors&jwt.ValidationErrorMalformed != 0 {
@@ -86,11 +99,43 @@ func (s JWTAuthService) AuthorizeToken(tokenString string) (bool, error) {
 	return false, errors.New("couldn't handle token")
 }
 
+// ExtractTokenMetadata function
+func (s JWTAuthService) ExtractTokenMetadata(tokenString string) (*dto.TokenDetails, error) {
+	s.logger.Debug("ExtractTokenMetadata")
+
+	token, err := s.VerifyToken(tokenString)
+	if err != nil {
+		return nil, err
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if ok && token.Valid {
+		accessUUID, ok := claims["access_uuid"].(string)
+		if !ok {
+			return nil, err
+		}
+
+		refreshUUID, ok := claims["refresh_uuid"].(string)
+		if !ok {
+			return nil, err
+		}
+
+		return &dto.TokenDetails{
+			AccessUUID:  accessUUID,
+			RefreshUUID: refreshUUID,
+		}, nil
+	}
+
+	return nil, err
+}
+
 // CreateToken creates jwt auth token
 func (s JWTAuthService) CreateToken(user entity.User) (*dto.TokenDetails, error) {
+	s.logger.Debug("CreateToken")
+
 	tokenDetails := &dto.TokenDetails{}
-	tokenDetails.AtExpires = time.Now().Add(time.Minute * 3).Unix()
-	tokenDetails.RtExpires = time.Now().Add(time.Minute * 15).Unix()
+	tokenDetails.AtExpires = time.Now().Add(time.Minute * 15).Unix()
+	tokenDetails.RtExpires = time.Now().Add(time.Hour * 3).Unix()
 	tokenDetails.AccessUUID = uuid.NewV4().String()
 	tokenDetails.RefreshUUID = uuid.NewV4().String()
 
@@ -100,6 +145,7 @@ func (s JWTAuthService) CreateToken(user entity.User) (*dto.TokenDetails, error)
 	atClaims := jwt.MapClaims{}
 	atClaims["authorized"] = true
 	atClaims["access_uuid"] = tokenDetails.AccessUUID
+	atClaims["refresh_uuid"] = tokenDetails.RefreshUUID
 	atClaims["id"] = user.ID
 	atClaims["name"] = user.Name
 	atClaims["email"] = user.Email
@@ -132,6 +178,8 @@ func (s JWTAuthService) CreateToken(user entity.User) (*dto.TokenDetails, error)
 
 // StoreToken stores jwt auth token into redis
 func (s JWTAuthService) StoreToken(user entity.User, token dto.TokenDetails) error {
+	s.logger.Debug("StoreToken")
+
 	at := time.Unix(token.AtExpires, 0) //converting Unix to UTC(to Time object)
 	rt := time.Unix(token.RtExpires, 0)
 	now := time.Now()
@@ -147,4 +195,11 @@ func (s JWTAuthService) StoreToken(user entity.User, token dto.TokenDetails) err
 	}
 
 	return nil
+}
+
+// FetchToken check uuid is exist in redis
+func (s JWTAuthService) FetchToken(uuid string) bool {
+	_, err := s.repository.Get(uuid).Result()
+
+	return err == nil
 }
